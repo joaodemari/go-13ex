@@ -30,11 +30,13 @@ const channelBufferSize = 5
 type Topology [N][N]int
 
 // O que é enviado entre nodos, pode adicionar campos nesta estrutura ...
+// O que é enviado entre nodos
 type Message struct {
 	id       int // identificador da mensagem - um nro sequencial ...
-	source   int
-	receiver int
+	source   int // nodo de origem
+	receiver int // nodo de destino
 	data     string
+	route    []int // pilha de rotas (sequência de IDs)
 }
 
 // um canal de entrada para cada nodo i
@@ -62,25 +64,40 @@ func (n *nodeStruct) broadcast(m Message) { // broadcast(origin int, topo Topolo
 // cada nodo recebe toda matriz de conectividade e os canais de entrada de todos processos
 // cada nodo le o seu canal de entrada e escreve a mensagem em todos canais de saida
 // (dele para outros nodos usando a funcao send)
-func (n *nodeStruct) nodo() { //(id int, topo Topology, inCh inputChan) {
-	fmt.Println(n.id, " ativo! ")
+func (n *nodeStruct) nodo() {
+	fmt.Println(n.id, "ativo!")
 	for {
-		m := <-n.inCh[n.id]     // espera entrada entrada, reage
-		if m.receiver == n.id { // ee para mim
+		m := <-n.inCh[n.id] // espera entrada
+
+		if m.receiver == n.id { // a mensagem é para mim
 			n.receivedMessages = append(n.receivedMessages, m)
-			if m.id > 0 { // se msg de ida, responde.  senao nao.  msg resposta tem id negativo
+			if m.id > 0 { // se mensagem de ida, responde. senão não. mensagem resposta tem id negativo
 				fmt.Println("                                   ", n.id, " recebe de ", m.source, "msg ", m.id, "  ", m.data)
-				go n.broadcast(Message{(-m.id), n.id, m.source, "resp to msg"})
+				// enviar resposta pela rota inversa
+				if len(m.route) > 0 {
+					nextNode := m.route[len(m.route)-1] // próximo nodo na rota (retorno) primeiro nodo da pilha
+					m.route = m.route[:len(m.route)-1]  // remove o primeiro nodo da pilha
+					go func() {
+						n.inCh[nextNode] <- Message{
+							id:       -m.id,
+							source:   n.id,
+							receiver: m.source,
+							data:     "resp to msg",
+							route:    m.route,
+						}
+					}()
+				}
 			} else {
 				fmt.Println("                                                                      ", n.id, " recebe de ", m.source, "msg ", m.id, "  ", m.data)
-
 			}
-		} else { // nao ee para mim ... tenho q repassar se for a primeira vez
-			_, achou := n.received[m.id] // procura no map, responde se achou
-			if !achou {                  // nao achou = nao recebi a msg antes
-				// fmt.Println(n.id, " repassa msg ", m.id, " de ", m.source, " para ", m.receiver)
-				n.received[m.id] = m // guarda para saber no futur
-				go n.broadcast(m)    // repassa a primeira vez                                                 // repassa m em todas arestas de saida
+		} else { // não é para mim ... repassar se for a primeira vez
+			if _, achou := n.received[m.id]; !achou { // não achou = não recebi a msg antes
+				n.received[m.id] = m // guarda para saber no futuro
+
+				// Empilha o ID do nodo atual na rota antes de repassar
+				m.route = append(m.route, n.id)
+
+				go n.broadcast(m) // repassa a primeira vez
 			}
 		}
 	}
@@ -91,23 +108,27 @@ func (n *nodeStruct) nodo() { //(id int, topo Topology, inCh inputChan) {
 
 func carga(nodoInicial int, inCh chan Message) {
 	for i := 1; i < 10; i++ { // gera mensagem de teste a cada segundo
-		//	inCh <- Message{i, nodoInicial, rand.Intn(9), " req"}
-		inCh <- Message{(nodoInicial * 1000) + i, nodoInicial, i, " req"}
-		//time.Sleep(20 * time.Millisecond)
+		inCh <- Message{
+			id:       (nodoInicial * 1000) + i,
+			source:   nodoInicial,
+			receiver: i,
+			data:     "req",
+			route:    []int{},
+		}
+		// time.Sleep(20 * time.Millisecond)
 	}
 }
 
 // ------------------------------------------------------------------------------------------------
 // no main: montagem da topologia, criacao de canais, inicializacao de nodos e geracao de mensagens
 // ------------------------------------------------------------------------------------------------
-
 func main() {
 	var topo Topology
-	//  se [i,j]==1, entao o nodo i pode enviar para o nodo j pelo canal j.
+	//  se [i,j]==1, então o nodo i pode enviar para o nodo j pelo canal j.
 	//  para alterar a topologia basta adicionar 1s.  cada 1 é uma aresta direcional.
-	//  para modelar comunicacao em ambas direcoes entre i e j, entao [i,j] e [j,i] devem ser 1
+	//  para modelar comunicação em ambas direções entre i e j, então [i,j] e [j,i] devem ser 1
 	topo = [N][N]int{
-		// conforme algoritmo na funco "nodo"
+		// conforme algoritmo na função "nodo"
 		//  0  1  2  3  4  5  6  7  8  9       aresta de    para - BIDIRECIONAIS
 		{0, 1, 0, 0, 0, 0, 0, 0, 0, 0}, // 0           0 - 1
 		{1, 0, 1, 0, 0, 0, 0, 0, 0, 0}, // 1           1 - 2
@@ -118,23 +139,23 @@ func main() {
 		{0, 0, 0, 0, 0, 1, 0, 1, 0, 0}, // 6           6 - 7
 		{0, 0, 0, 0, 0, 0, 1, 0, 1, 0}, // 7           7 - 8
 		{0, 0, 0, 0, 0, 0, 0, 1, 0, 1}, // 8           8 - 9
-		{0, 0, 0, 0, 0, 1, 0, 0, 1, 0}} // 9
+		{0, 0, 0, 0, 0, 1, 0, 0, 1, 0}, // 9           9 - 4
+	}
 
 	var inCh inputChan // cada nodo i tem um canal de entrada, chamado inCh[i]
 	for i := 0; i < N; i++ {
 		inCh[i] = make(chan Message, channelBufferSize) // criando cada um dos canais
 	}
 
-	// lanca todos os nodos
+	// lança todos os nodos
 	for id := 0; id < N; id++ {
 		n := nodeStruct{id, topo, inCh, make(map[int]Message), []Message{}}
-		go n.nodo() // por simplicidade todos nodos tem acesso aa mesma topologia (que nao muda)
-		// assim como todo nodo tem acesso ao canal de entrada de todos outros mas vai usar somente os que pode enviar
+		go n.nodo() // por simplicidade todos nodos têm acesso à mesma topologia (que não muda)
 	}
 
 	// carga de mensagens para que sejam "inundadas" na rede
 	go carga(0, inCh[0])
 	carga(5, inCh[5])
 
-	<-make(chan struct{}) // bloqueia senao nodos acabam
+	<-make(chan struct{}) // bloqueia senão nodos acabam
 }
