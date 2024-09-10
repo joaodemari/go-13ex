@@ -15,6 +15,12 @@
 // //    2) Implemente a eliminação de duplicatas.
 // //       Cada nodo deve repassar a mensagem apenas a primeira vez que a recebe.
 
+// // POR João Pedro Demari, Athos Endele Puna e Thales Xavier
+
+// // Adicionamos um array no tipo do nodo, para que registre todas as mensagens já passadas pelo nodo e fazemos
+// // a conferência iterando sobre esse mesmo array para que, caso a mensagem tenha sido encontrada nos
+// // registros do nodo, ela não seja passada.
+
 // package main
 
 // import (

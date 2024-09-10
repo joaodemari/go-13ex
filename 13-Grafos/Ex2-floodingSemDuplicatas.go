@@ -17,6 +17,13 @@
 // //    3) tente rodar o sistema.
 // //       o que ocorre?  como voce pode resolver ?
 
+// // POR João Pedro Demari, Athos Endele Puna e Thales Xavier
+
+// // Ao transformar a matriz em bidirecional, um nodo i pode enviar mensagem ao nodo j e o nodo j mandar mensagem
+// // ao nodo i. E isso ocorre ao mesmo tempo, não removendo mensagens duplicadas. Podemos resolver isso criando
+// // um processo para o broadcast. Assim, disparar o broadcast libera o nodo para ler a entrada, quebrando
+// // o bloqueio
+
 // package main
 
 // import (
@@ -75,7 +82,7 @@
 // 			_, achou := n.received[m.id] // procura no map, responde se achou
 // 			if !achou {                  // nao achou = nao recebi a msg antes
 // 				fmt.Println(n.id, " tratando msg ", m.id, " para ", m.receiver)
-// 				n.broadcast(m)       // repassa a primeira vez                                                 // repassa m em todas arestas de saida
+// 				go n.broadcast(m)    // repassa a primeira vez                                                 // repassa m em todas arestas de saida
 // 				n.received[m.id] = m // guarda para saber no futuro
 // 			}
 // 		}

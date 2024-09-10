@@ -14,6 +14,8 @@
 //          este desenvolvimento pode ser com seu grupo.
 //          deverá ser entregue em data marcada.
 
+// POR João Pedro Demari, Athos Endele Puna e Thales Xavier
+
 package main
 
 import (
@@ -61,6 +63,16 @@ func (n *nodeStruct) broadcast(m Message) { // broadcast(origin int, topo Topolo
 	}
 }
 
+func answer(nextNode int, mSent Message, n *nodeStruct) {
+	n.inCh[nextNode] <- Message{
+		id:       -mSent.id,
+		source:   n.id,
+		receiver: mSent.source,
+		data:     "enviando BatSinal",
+		route:    mSent.route,
+	}
+}
+
 // cada nodo recebe toda matriz de conectividade e os canais de entrada de todos processos
 // cada nodo le o seu canal de entrada e escreve a mensagem em todos canais de saida
 // (dele para outros nodos usando a funcao send)
@@ -72,29 +84,22 @@ func (n *nodeStruct) nodo() {
 		if m.receiver == n.id { // a mensagem é para mim
 			n.receivedMessages = append(n.receivedMessages, m)
 			if m.id > 0 { // se mensagem de ida, responde. senão não. mensagem resposta tem id negativo
-				fmt.Println("                                   ", n.id, " recebe de ", m.source, "msg ", m.id, "  ", m.data)
+				fmt.Println("   MENSAGEM DE IDA:      ", n.id, " recebeu mensagem da fonte: ", m.source, ", ID DA MSG: ", m.id, " conteudo:", m.data)
 				// enviar resposta pela rota inversa
-				if len(m.route) > 0 {
+				if len(m.route) > 0 { // confere que ainda há rota pra percorrer na pilha
 					nextNode := m.route[len(m.route)-1] // próximo nodo na rota (retorno) primeiro nodo da pilha
 					m.route = m.route[:len(m.route)-1]  // remove o primeiro nodo da pilha
-					go func() {
-						n.inCh[nextNode] <- Message{
-							id:       -m.id,
-							source:   n.id,
-							receiver: m.source,
-							data:     "resp to msg",
-							route:    m.route,
-						}
-					}()
+					go answer(nextNode, m, n)
 				}
 			} else {
-				fmt.Println("                                                                      ", n.id, " recebe de ", m.source, "msg ", m.id, "  ", m.data)
+				fmt.Println("MENSAGEM DE RESPOSTA:                                                               ", n.id, " recebe de ", m.source, "msg ", m.id, "  ", m.data)
 			}
 		} else { // não é para mim ... repassar se for a primeira vez
 			if _, achou := n.received[m.id]; !achou { // não achou = não recebi a msg antes
+				fmt.Println("repassando mensagem: Aqui é o nodo ", n.id, " recebi mensagem da fonte: ", m.source, ", ID DA MSG: ", m.id, " conteudo:", m.data)
 				n.received[m.id] = m // guarda para saber no futuro
 
-				// Empilha o ID do nodo atual na rota antes de repassar
+				// empilha o nodo atual na rota antes de repassar
 				m.route = append(m.route, n.id)
 
 				go n.broadcast(m) // repassa a primeira vez
@@ -107,12 +112,12 @@ func (n *nodeStruct) nodo() {
 // carga nos nodos
 
 func carga(nodoInicial int, inCh chan Message) {
-	for i := 1; i < 10; i++ { // gera mensagem de teste a cada segundo
+	for i := 4; i < 5; i++ { // gera mensagem de teste a cada segundo
 		inCh <- Message{
 			id:       (nodoInicial * 1000) + i,
 			source:   nodoInicial,
 			receiver: i,
-			data:     "req",
+			data:     "Batman me ajude!",
 			route:    []int{},
 		}
 		// time.Sleep(20 * time.Millisecond)

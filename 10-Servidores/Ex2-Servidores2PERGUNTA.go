@@ -15,6 +15,12 @@
 //   como voce faria ?
 //
 
+// POR João Pedro Demari, Athos Endele Puna e Thales Xavier
+
+// Como foi mostrado na pasta ./3-CanaisEBufferizacao, adicionamos um canal com buffer de tamanho 10. Assim, esse canal
+// permite que apenas 10 requisições sejam tratadas concorrentemente, porque, ao tratar as 10 requisições, o buffer
+// do canal fica "cheio" e precisa esperar que um espaço no buffer do canal libere.
+
 package main
 
 import (
@@ -53,16 +59,18 @@ func trataReq(id int, req Request) {
 	req.ch_ret <- req.v * 2
 }
 
+func mandaReq(req Request, bloq chan struct{}) {
+	trataReq(rand.Intn(100), req)
+	<-bloq
+}
+
 // servidor que dispara threads de servico
 func servidorConc(in chan Request) {
 	bloqueio := make(chan struct{}, Pool) // Canal com buffer para limitar o número de goroutines
 
 	for req := range in {
-		bloqueio <- struct{}{} // Bloqueia se o buffer estiver cheio, liberando até o número de Pool goroutines simultâneas
-		go func(req Request) {
-			trataReq(rand.Intn(100), req)
-			<-bloqueio // Libera um dos lugares no canal com buffer buffer ao final do processamento
-		}(req)
+		bloqueio <- struct{}{} // Bloqueia se o buffer estiver cheio, liberando até 10 goroutines simultâneas
+		go mandaReq(req, bloqueio)
 	}
 }
 

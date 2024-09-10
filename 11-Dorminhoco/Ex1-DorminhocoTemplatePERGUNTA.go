@@ -8,6 +8,8 @@
 //   O ultimo leva a rolhada ...
 //   ESTE  PROGRAMA NAO FUNCIONA.    É UM RASCUNHO COM DICAS.
 
+// POR João Pedro Demari, Athos Endele Puna e Thales Xavier
+
 package main
 
 import (
